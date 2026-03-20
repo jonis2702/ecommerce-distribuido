@@ -1,0 +1,265 @@
+openapi: 3.0.3
+info:
+  title: E-commerce Distribuído - Contratos de API
+  version: 1.0.0
+  description: |
+    Documento OpenAPI/Swagger para o Marco 1 do projeto.
+
+    Este contrato documenta a comunicação síncrona entre:
+    - Checkout API
+    - Serviço de Estoque
+
+    Observação de integração:
+    para a demonstração funcionar de ponta a ponta, o Serviço de Estoque e o Checkout
+    precisam compartilhar o mesmo contrato JSON e a mesma porta/URL configurada.
+servers:
+  - url: http://localhost:8082
+    description: Checkout API
+  - url: http://localhost:8081
+    description: Serviço de Estoque
+
+tags:
+  - name: Checkout API
+    description: Endpoints de criação de pedido
+  - name: Serviço de Estoque
+    description: Endpoints de verificação de disponibilidade
+
+paths:
+  /pedidos:
+    post:
+      tags:
+        - Checkout API
+      summary: Criar pedido
+      description: |
+        Recebe uma solicitação de compra e, antes de concluir o pedido,
+        consulta de forma síncrona o Serviço de Estoque.
+      operationId: criarPedido
+      servers:
+        - url: http://localhost:8082
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PedidoRequest'
+            examples:
+              pedidoValido:
+                summary: Pedido com estoque disponível
+                value:
+                  produto: produto_A
+                  quantidade: 2
+              pedidoSemEstoque:
+                summary: Pedido sem estoque suficiente
+                value:
+                  produto: produto_B
+                  quantidade: 6
+      responses:
+        '201':
+          description: Pedido criado com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PedidoCriadoResponse'
+              examples:
+                sucesso:
+                  value:
+                    mensagem: Pedido criado com sucesso
+                    pedido:
+                      produto: produto_A
+                      quantidade: 2
+                    estoque:
+                      produto: produto_A
+                      quantidadeSolicitada: 2
+                      quantidadeDisponivel: 10
+                      disponivel: true
+        '400':
+          description: Dados inválidos no pedido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErroResponse'
+              examples:
+                produtoObrigatorio:
+                  value:
+                    erro: Produto obrigatório
+                quantidadeInvalida:
+                  value:
+                    erro: Quantidade deve ser maior que zero
+        '404':
+          description: Produto não encontrado no estoque
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErroResponse'
+              examples:
+                naoEncontrado:
+                  value:
+                    erro: Produto não encontrado no estoque
+        '409':
+          description: Estoque insuficiente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PedidoSemEstoqueResponse'
+              examples:
+                semEstoque:
+                  value:
+                    erro: Estoque insuficiente
+                    estoque:
+                      produto: produto_B
+                      quantidadeSolicitada: 6
+                      quantidadeDisponivel: 5
+                      disponivel: false
+        '502':
+          description: Falha na comunicação com o Serviço de Estoque
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErroResponse'
+              examples:
+                falhaIntegracao:
+                  value:
+                    erro: Falha ao consultar estoque
+
+  /estoque/verificar:
+    get:
+      tags:
+        - Serviço de Estoque
+      summary: Verificar disponibilidade de produto
+      description: |
+        Verifica se um produto existe e se a quantidade solicitada está disponível.
+      operationId: verificarEstoque
+      servers:
+        - url: http://localhost:8081
+      parameters:
+        - name: produto
+          in: query
+          required: true
+          description: Identificador do produto
+          schema:
+            type: string
+            example: produto_A
+        - name: quantidade
+          in: query
+          required: true
+          description: Quantidade desejada
+          schema:
+            type: integer
+            minimum: 1
+            example: 2
+      responses:
+        '200':
+          description: Produto consultado com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EstoqueResposta'
+              examples:
+                disponivel:
+                  value:
+                    produto: produto_A
+                    quantidadeSolicitada: 2
+                    quantidadeDisponivel: 10
+                    disponivel: true
+                indisponivel:
+                  value:
+                    produto: produto_B
+                    quantidadeSolicitada: 6
+                    quantidadeDisponivel: 5
+                    disponivel: false
+        '400':
+          description: Parâmetros inválidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErroResponse'
+              examples:
+                quantidadeInvalida:
+                  value:
+                    erro: Quantidade inválida
+                produtoObrigatorio:
+                  value:
+                    erro: Produto obrigatório
+        '404':
+          description: Produto não encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErroResponse'
+              examples:
+                naoEncontrado:
+                  value:
+                    erro: Produto não encontrado
+
+components:
+  schemas:
+    PedidoRequest:
+      type: object
+      required:
+        - produto
+        - quantidade
+      properties:
+        produto:
+          type: string
+          example: produto_A
+        quantidade:
+          type: integer
+          minimum: 1
+          example: 2
+
+    EstoqueResposta:
+      type: object
+      required:
+        - produto
+        - quantidadeSolicitada
+        - quantidadeDisponivel
+        - disponivel
+      properties:
+        produto:
+          type: string
+          example: produto_A
+        quantidadeSolicitada:
+          type: integer
+          example: 2
+        quantidadeDisponivel:
+          type: integer
+          example: 10
+        disponivel:
+          type: boolean
+          example: true
+
+    PedidoCriadoResponse:
+      type: object
+      required:
+        - mensagem
+        - pedido
+        - estoque
+      properties:
+        mensagem:
+          type: string
+          example: Pedido criado com sucesso
+        pedido:
+          $ref: '#/components/schemas/PedidoRequest'
+        estoque:
+          $ref: '#/components/schemas/EstoqueResposta'
+
+    PedidoSemEstoqueResponse:
+      type: object
+      required:
+        - erro
+        - estoque
+      properties:
+        erro:
+          type: string
+          example: Estoque insuficiente
+        estoque:
+          $ref: '#/components/schemas/EstoqueResposta'
+
+    ErroResponse:
+      type: object
+      required:
+        - erro
+      properties:
+        erro:
+          type: string
+          example: Mensagem de erro
