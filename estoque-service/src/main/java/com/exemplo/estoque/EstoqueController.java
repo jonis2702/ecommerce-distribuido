@@ -29,13 +29,13 @@ public class EstoqueController {
 
         if (!estoque.containsKey(produto)) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body("Produto nao encontrado");
+                    .body("Produto nao foi encontrado");
         }
 
         int disponivel = estoque.get(produto);
 
         if (disponivel >= quantidade) {
-            return ResponseEntity.ok("Produto disponivel");
+            return ResponseEntity.ok("Produto esta disponivel");
         } else {
             return ResponseEntity.badRequest()
                     .body("Estoque insuficiente");
